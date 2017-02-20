@@ -1,0 +1,53 @@
+---
+title: "Classifying Activity Type from Accelerometer Data"
+author: "Kieffer Thomas"
+date: "February 12, 2017"
+output: html_document
+---
+###Overview
+This analysis looks at data from wearable devices and constructs a model that will predict the class of activity from the data collected from these devices. The data as well as information about the variables can be found [here](http://groupware.les.inf.puc-rio.br/har). Using a random forest model to predict the class of activity is found to be highly accurate. 
+
+**Preparing the Data**  
+First let's read in the data and get rid of any variables that don't seem to contain much information (there are a lot of NAs and missing information). Assuming we want our model to be able predict the class of activity with only data from the accelerometers, user_name is also removed.
+
+```{r, message=FALSE, warning=FALSE}
+PML <- read.csv("pml-training.csv")
+PML2 <- Filter(function(x) !any(is.na(x)), PML)
+PMLSmall <- subset(PML2, select = -c(X, user_name, raw_timestamp_part_1:num_window, kurtosis_roll_belt:amplitude_yaw_belt, kurtosis_roll_arm:skewness_yaw_arm, kurtosis_roll_dumbbell:amplitude_yaw_dumbbell, kurtosis_roll_forearm:amplitude_yaw_forearm))
+```
+
+This leaves us with 53 variables including the class (classe) of activity.
+```{r}
+names(PMLSmall)
+```
+Now split the data into a training and a test set.
+```{r, warning = F, message = F, cache=T}
+library(caret)
+inTrain <- createDataPartition(PMLSmall$classe, p = .7, list = F)
+PMLtrain <- PMLSmall[inTrain,]
+PMLtest <- PMLSmall[-inTrain,]
+```
+
+**Building a Model**  
+We're going to build a random forest model using the randomForest package.
+
+```{r, warning = F, message = F, cache = T}
+library(randomForest)
+set.seed(12345)
+rfFit <- randomForest(classe ~ ., data = PMLtrain)
+rfFit
+```
+
+Not too shabby. This model has an out of bag (OOB) estimated error rate -- essentially the rate of times this model would misclassify data not in this training set -- of only about 0.5%. Cross validation in a random forest is achieved by bootstrapping -- resampling, with replacement, from the data in the training set (in this case we are using the default sampsize parameter, so each resample is about 2/3 of the data in the training set). The model then uses the samples to test a number of predictors to build optimal classification trees (again, the default parameter, mtry, is left as is, testing 7 predictors at each split). 
+
+**Testing the Model**  
+Now, let's predict the class variable in our test dataset from this model to confirm accuracy, expecting the out of sample error rate to be 0.5%.
+
+```{r, warning = F, message = F}
+library(caret)
+library(randomForest)
+pred <- predict(rfFit, newdata = PMLtest)
+confusionMatrix(pred, PMLtest$classe)
+```
+
+Indeed, the model correctly predicted about 99.5% of cases.
